@@ -210,8 +210,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 257611068}
   m_LocalRotation: {x: -0, y: -0, z: -0.7071068, w: 0.7071068}
-  m_LocalPosition: {x: -15.27, y: 6.38, z: 48.8}
-  m_LocalScale: {x: 20, y: 1, z: 54.62}
+  m_LocalPosition: {x: -17.5, y: 6.4, z: 184.9}
+  m_LocalScale: {x: 20, y: 1, z: 335.9}
   m_Children: []
   m_Father: {fileID: 362843310}
   m_RootOrder: 3
@@ -672,8 +672,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d00caae3e0d24c4b871178f2bef3f44, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sensitivityX: 50
-  sensitivityY: 50
+  wallRun: {fileID: 868011349}
+  sensitivityX: 70
+  sensitivityY: 70
   cam: {fileID: 1978010704}
   orientation: {fileID: 1624867999}
 --- !u!114 &868011349
@@ -692,8 +693,8 @@ MonoBehaviour:
   cam: {fileID: 1167007880}
   wallRunFov: 110
   wallRunFovTime: 20
-  camTilt: 0
-  camTiltTime: 0
+  camTilt: 20
+  camTiltTime: 20
   wallDistance: 0.75
   minimumJumpHeight: 1.5
   wallGravity: 1
@@ -1221,7 +1222,7 @@ MonoBehaviour:
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
   m_RenderPostProcessing: 1
-  m_Antialiasing: 0
+  m_Antialiasing: 2
   m_AntialiasingQuality: 2
   m_StopNaN: 0
   m_Dithering: 0
@@ -1450,8 +1451,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1455441006}
   m_LocalRotation: {x: -0, y: -0, z: -0.7071068, w: 0.7071068}
-  m_LocalPosition: {x: -23.61, y: 6.38, z: 37.44}
-  m_LocalScale: {x: 20, y: 1, z: 54.62}
+  m_LocalPosition: {x: -23.61, y: 6.38, z: 178.2}
+  m_LocalScale: {x: 20, y: 1, z: 333.14}
   m_Children: []
   m_Father: {fileID: 362843310}
   m_RootOrder: 2
