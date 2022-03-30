@@ -44,6 +44,7 @@ public class RigidMovement : MonoBehaviour
     [Header("Blast")]
     public float blastForce = 75f;
     public GunSystem gunSystem;
+    public LayerMask playerMask; // Use this so that the gun hit detection ignores player layer.
 
     [Header("Trap")]
     public GameObject bouncePad;
@@ -142,7 +143,7 @@ public class RigidMovement : MonoBehaviour
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         } else if(currentJumpCount < maxJumpCount) {
-            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+            // rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         }
@@ -173,7 +174,7 @@ public class RigidMovement : MonoBehaviour
 
         // Explode any objects that are hit by the blast.
         RaycastHit blastHit;
-        if(Physics.Raycast(transform.position, cameraOrientation.forward, out blastHit, 100)) {
+        if(Physics.Raycast(transform.position, cameraOrientation.forward, out blastHit, 100, ~playerMask)) {
             Vector3 blastPosition = blastHit.point;
             gunSystem.ShowImpactBlast(blastPosition);
             
