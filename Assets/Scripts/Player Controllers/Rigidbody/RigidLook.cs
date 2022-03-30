@@ -40,4 +40,8 @@ public class RigidLook : MonoBehaviour
 
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
     }
+
+    public Transform getCameraHolder() {
+        return cam;
+    }
 }

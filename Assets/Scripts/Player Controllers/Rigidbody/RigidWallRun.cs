@@ -20,6 +20,7 @@ public class RigidWallRun : MonoBehaviour
     [Header("Detection")]
     public float wallDistance = 0.5f;
     public float minimumJumpHeight = 1.5f;
+    public LayerMask playerMask; // This is so we don't detect ourself.
 
     [Header("Parameters")]
     public float wallGravity;
@@ -43,24 +44,20 @@ public class RigidWallRun : MonoBehaviour
 
         if(CanWallRun()) {
             if(wallLeft) {
-                Debug.Log("wall left");
                 StartWallRun();
             } else if(wallRight) {
-                Debug.Log("wall right");
                 StartWallRun();
             } else {
-                Debug.Log("stopping wall run but CAN WALL RUN");
                 StopWallRun();
             }
         } else {
-            Debug.Log("can't wall run so stopping");
             StopWallRun();
         }
     }
 
     void CheckWall() {
-        wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallHit, wallDistance);
-        wallRight = Physics.Raycast(transform.position, orientation.right, out rightWallHit, wallDistance);
+        wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallHit, wallDistance, ~playerMask);
+        wallRight = Physics.Raycast(transform.position, orientation.right, out rightWallHit, wallDistance, ~playerMask);
     }
 
     bool CanWallRun() {
