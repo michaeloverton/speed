@@ -4,9 +4,9 @@ using UnityEngine;
 
 public class RigidMovement : MonoBehaviour
 {
-    float playerHeight = 2f;
     Rigidbody rb;
     RigidLook rigidLook;
+    CapsuleCollider playerCollider;
 
     [Header("Movement")]
     public Transform orientation;
@@ -38,6 +38,20 @@ public class RigidMovement : MonoBehaviour
     public int maxPoundCount = 2;
     private int currentPoundCount = 0;
 
+    [Header("Crouch/Slide")]
+    public float flatSlideForce = 5f;
+    public float slopeSlideForce = 10f;
+    private bool sliding = false;
+    private float basePlayerHeight;
+    public float crouchedPlayerHeight = 1f;
+    private bool crouched = false;
+    public Transform cameraPosition;
+    private Vector3 baseCameraPosition;
+    public float crouchedCameraHeight = .25f;
+    private Vector3 crouchedCameraPosition;
+    public float crouchTime = 10f;
+    private bool uncrouching = false;
+
     [Header("Dash")]
     public float dashForce = 100f;
 
@@ -59,7 +73,7 @@ public class RigidMovement : MonoBehaviour
     [Header("Keybinds")]
     public KeyCode jumpKey = KeyCode.Space;
     public KeyCode dashKey = KeyCode.LeftShift;
-    public KeyCode poundKey = KeyCode.LeftControl;
+    public KeyCode crouchPoundKey = KeyCode.LeftControl;
     public KeyCode shootKey = KeyCode.E;
     public KeyCode trapKey = KeyCode.Q;
 
@@ -71,25 +85,29 @@ public class RigidMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
         rigidLook = GetComponent<RigidLook>();
+
+        playerCollider = GetComponent<CapsuleCollider>();
+        basePlayerHeight = playerCollider.height;
+        baseCameraPosition = cameraPosition.localPosition;
+        crouchedCameraPosition = new Vector3(cameraPosition.localPosition.x, crouchedCameraHeight, cameraPosition.localPosition.z);
     }
 
     void Update() {
         isGrounded = Physics.CheckSphere(groundCheck.position, groundSphereRadius, groundMask);
         if(isGrounded) {
+            // Reset jumps and pounds.
             currentJumpCount = 0;
             currentPoundCount = 0;
         }
 
+        slopeMovementDirection = Vector3.ProjectOnPlane(movementDirection, slopeHit.normal);
+
         GetInput();
         ControlDrag();
-        // ControlSpeed();
 
         // These should likely be handled in FixedUpdate.
         if(Input.GetKeyDown(jumpKey)) {
             Jump();
-        }
-        if(Input.GetKeyDown(poundKey)) {
-            Pound();
         }
         if(Input.GetKeyDown(dashKey)) {
             Dash();
@@ -101,7 +119,20 @@ public class RigidMovement : MonoBehaviour
             Trap();
         }
 
-        slopeMovementDirection = Vector3.ProjectOnPlane(movementDirection, slopeHit.normal);
+        if(Input.GetKeyDown(crouchPoundKey) && !isGrounded) {
+            Pound();
+        } else if(Input.GetKey(crouchPoundKey) && isGrounded) {
+            Crouch();
+            sliding = true;
+        }
+        if(Input.GetKeyUp(crouchPoundKey)) {
+            Uncrouch();
+            sliding = false;
+        }
+        if(uncrouching == true && !crouched) {
+            // We must continue to call Uncrouch until we have lerped back to original camera position.
+            Uncrouch();
+        }
     }
 
     void FixedUpdate() {
@@ -126,6 +157,10 @@ public class RigidMovement : MonoBehaviour
             // Add downwards force to make falling faster and get better gravity feel.
             rb.AddForce(Vector3.down * fallingForce, ForceMode.Acceleration);
             // rb.AddForce(Vector3.down * fallingForce, ForceMode.Force);
+        }
+
+        if(sliding) {
+            Slide();
         }
     }
 
@@ -161,6 +196,52 @@ public class RigidMovement : MonoBehaviour
         }
     }
 
+    void Crouch() {
+        if(!crouched) {
+            playerCollider.height = crouchedPlayerHeight;
+            playerCollider.center = new Vector3(0,-0.5f,0);
+            crouched = true;
+        }
+
+        cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, crouchedCameraPosition, crouchTime * Time.deltaTime);
+    }
+
+    void Uncrouch() {
+        if(crouched) {
+            playerCollider.height = basePlayerHeight;
+            playerCollider.center = new Vector3(0,0,0);
+            crouched = false;
+        }
+        
+        cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, baseCameraPosition, 2 * crouchTime * Time.deltaTime);
+        
+        if(Mathf.Abs(cameraPosition.localPosition.y - baseCameraPosition.y) < 0.05) {
+            uncrouching = false;
+            cameraPosition.localPosition = baseCameraPosition;
+        } else {
+            uncrouching = true;
+        }
+    }
+
+    void Slide() {
+        if(!OnSlope()) {
+            rb.AddForce(orientation.forward * flatSlideForce, ForceMode.Impulse);
+        } else {
+            // Get the vector pointing down the slope.
+            Vector3 left = Vector3.Cross(slopeHit.normal, Vector3.up); 
+            Vector3 slope = Vector3.Cross(slopeHit.normal, left);
+
+            // Get the steepness of the slope.
+            float angle = Vector3.Angle(slope, Vector3.up);
+
+            // The angle is between 90 and 180. Remap its value to between 0 and 1.
+            float slideForceScale = (angle -  90)*(1)/90;
+            
+            // Multiply the force by this scaling amount. Steeper slopes slide faster.
+            rb.AddForce(slope.normalized * slopeSlideForce * slideForceScale, ForceMode.Impulse);
+        }
+    }
+
     void Dash() {
         rb.AddForce(orientation.forward * dashForce, ForceMode.Impulse);
     }
@@ -190,7 +271,6 @@ public class RigidMovement : MonoBehaviour
 
     void Trap() {
         GameObject pad = Instantiate(bouncePad, transform.position + 5*orientation.forward, Quaternion.identity);
-
     }
 
     void ControlDrag() {
@@ -202,12 +282,14 @@ public class RigidMovement : MonoBehaviour
     }
 
     bool OnSlope() {
-        if(Physics.Raycast(transform.position, Vector3.down, out slopeHit, (playerHeight / 2) + slopeHitMargin)) {
+        if(Physics.Raycast(transform.position, Vector3.down, out slopeHit, (basePlayerHeight / 2) + slopeHitMargin)) {
             if(slopeHit.normal != Vector3.up) {
+                // Debug.Log("on slope");
                 return true;
             }
         }
 
+        // Debug.Log("off slope");
         return false;
     }
 }
