@@ -5502,6 +5502,7 @@ MonoBehaviour:
   cameraPosition: {fileID: 246725579}
   crouchedCameraHeight: -0.5
   crouchTime: 10
+  slideMovementReducer: 0.3
   dashForce: 100
   blastForce: 75
   gunSystem: {fileID: 1253247496}

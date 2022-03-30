@@ -51,6 +51,8 @@ public class RigidMovement : MonoBehaviour
     private Vector3 crouchedCameraPosition;
     public float crouchTime = 10f;
     private bool uncrouching = false;
+    private Vector3 slideVector = Vector3.zero;
+    public float slideMovementReducer = 0.2f;
 
     [Header("Dash")]
     public float dashForce = 100f;
@@ -122,12 +124,20 @@ public class RigidMovement : MonoBehaviour
         if(Input.GetKeyDown(crouchPoundKey) && !isGrounded) {
             Pound();
         } else if(Input.GetKey(crouchPoundKey) && isGrounded) {
+            // If grounded and holding crouch key, slide.
             Crouch();
             sliding = true;
+
+            if(slideVector == Vector3.zero) {
+                // If slideVector was 0, the button was just pressed.
+                // Store the direction we are looking when we press the slide button.
+                slideVector = orientation.forward;
+            }
         }
         if(Input.GetKeyUp(crouchPoundKey)) {
             Uncrouch();
             sliding = false;
+            slideVector = Vector3.zero; // When we uncrouch, return the slideVector to 0 state.
         }
         if(uncrouching == true && !crouched) {
             // We must continue to call Uncrouch until we have lerped back to original camera position.
@@ -147,19 +157,18 @@ public class RigidMovement : MonoBehaviour
     }
 
     void MovePlayer() {
-        if(isGrounded && !OnSlope()) {
+        if(isGrounded && !OnSlope() && !sliding) {
             rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier, ForceMode.Acceleration);
-        } else if(isGrounded && OnSlope()) {
+        } else if(isGrounded && OnSlope() && !sliding) {
             rb.AddForce(slopeMovementDirection.normalized * movementSpeed * groundMovementMultiplier, ForceMode.Acceleration);
         } else if(!isGrounded) {
             rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier * airMovementMultiplier, ForceMode.Acceleration);
 
             // Add downwards force to make falling faster and get better gravity feel.
             rb.AddForce(Vector3.down * fallingForce, ForceMode.Acceleration);
-            // rb.AddForce(Vector3.down * fallingForce, ForceMode.Force);
-        }
-
-        if(sliding) {
+        } else if(sliding) {
+            // Allow some movement adjustments, but reduce the effect of adjustment via slideMovementReducer.
+            rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier * slideMovementReducer, ForceMode.Acceleration);
             Slide();
         }
     }
@@ -216,6 +225,7 @@ public class RigidMovement : MonoBehaviour
         cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, baseCameraPosition, 2 * crouchTime * Time.deltaTime);
         
         if(Mathf.Abs(cameraPosition.localPosition.y - baseCameraPosition.y) < 0.05) {
+            // If camera is "close enough" to its original position, reset the camera back to its original position and stop uncrouching.
             uncrouching = false;
             cameraPosition.localPosition = baseCameraPosition;
         } else {
@@ -225,7 +235,7 @@ public class RigidMovement : MonoBehaviour
 
     void Slide() {
         if(!OnSlope()) {
-            rb.AddForce(orientation.forward * flatSlideForce, ForceMode.Impulse);
+            rb.AddForce(slideVector * flatSlideForce, ForceMode.Impulse);
         } else {
             // Get the vector pointing down the slope.
             Vector3 left = Vector3.Cross(slopeHit.normal, Vector3.up); 
