@@ -65,6 +65,22 @@ public class RigidMovement : MonoBehaviour
     [Header("Trap")]
     public GameObject bouncePad;
 
+    [Header("Grind")]
+    public float grindDistanceDetection = 1.0f;
+    public float grindCheckRadius = .5f;
+    // This corrects for slight errors in the spherecast for checking for a grindable surface below.
+    public float grindCheckSphereCastCenterCorrection = 1f;
+    public LayerMask grindMask;
+    private RaycastHit grindHit;
+    private Vector3 grindContactPoint;
+    bool canGrind = false;
+    bool grindLocked = false; // If we are attached to the rail.
+    public float grindLockSpeed = 10f;
+    public float grindLockDistance = 0.25f; // How far we are from rail before we are "locked in".
+    private bool grinding = false;
+    public float grindSpeed = 30f;
+    private RaycastHit grindSurfaceHit;
+
     // Ground detection.
     [Header("Ground Detection")]
     public Transform groundCheck;
@@ -102,6 +118,21 @@ public class RigidMovement : MonoBehaviour
             currentPoundCount = 0;
         }
 
+        canGrind = Physics.SphereCast(
+            transform.position + (Vector3.up * grindCheckSphereCastCenterCorrection), 
+            grindCheckRadius, 
+            -transform.up, 
+            out grindHit, 
+            grindDistanceDetection, 
+            grindMask
+        );
+        // Band aid for grind check. Make sure the point is below groundCheck.
+        // if(grindHit.point.y > groundCheck.position.y) {
+        //     canGrind = false;
+        // }
+
+        Physics.Raycast(transform.position, Vector3.down, out grindSurfaceHit);
+
         slopeMovementDirection = Vector3.ProjectOnPlane(movementDirection, slopeHit.normal);
 
         GetInput();
@@ -121,9 +152,27 @@ public class RigidMovement : MonoBehaviour
             Trap();
         }
 
-        if(Input.GetKeyDown(crouchPoundKey) && !isGrounded) {
+        // Crouch pressed.
+        if(Input.GetKeyDown(crouchPoundKey) && !isGrounded && !canGrind) {
             Pound();
-        } else if(Input.GetKey(crouchPoundKey) && isGrounded) {
+        }
+        else if(Input.GetKeyDown(crouchPoundKey) && !isGrounded && canGrind) {
+            // FIRST DETECTION OF DESIRE TO GRIND.
+
+            // Should this be on key down or on key?
+            // Turn off gravity so we can stick to rail better while key is held.
+            // WALL RUN TURN OFF GRAVITY INTERFERES WITH GRAVITY ON/OFF HERE.
+            rb.useGravity = false;
+
+
+            Debug.Log("gRIND LOCKING");
+            // Freeze velocity on initial detection of grind.
+            rb.velocity = Vector3.zero;
+            grindContactPoint = grindHit.point;
+            grinding = true;
+            playerCollider.enabled = false;
+        } 
+        else if(Input.GetKey(crouchPoundKey) && isGrounded) {
             // If grounded and holding crouch key, slide.
             Crouch();
             sliding = true;
@@ -134,10 +183,23 @@ public class RigidMovement : MonoBehaviour
                 slideVector = orientation.forward;
             }
         }
+
+        if(Input.GetKey(crouchPoundKey) && !isGrounded && canGrind) {
+            // Debug.Log("WE ARE GRINDING.");
+            if(!grindLocked) {
+                AttachGrind();
+            }
+        }
+
+        // Crouch unpressed.
         if(Input.GetKeyUp(crouchPoundKey)) {
             Uncrouch();
             sliding = false;
             slideVector = Vector3.zero; // When we uncrouch, return the slideVector to 0 state.
+
+            grinding = false;
+            grindLocked = false;
+            playerCollider.enabled = true;
         }
         if(uncrouching == true && !crouched) {
             // We must continue to call Uncrouch until we have lerped back to original camera position.
@@ -157,19 +219,29 @@ public class RigidMovement : MonoBehaviour
     }
 
     void MovePlayer() {
-        if(isGrounded && !OnSlope() && !sliding) {
+        if(isGrounded && !OnSlope() && !sliding && !grinding) {
             rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier, ForceMode.Acceleration);
-        } else if(isGrounded && OnSlope() && !sliding) {
+        } else if(isGrounded && OnSlope() && !sliding && !grinding) {
             rb.AddForce(slopeMovementDirection.normalized * movementSpeed * groundMovementMultiplier, ForceMode.Acceleration);
-        } else if(!isGrounded) {
+        } else if(!isGrounded && !grinding) {
             rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier * airMovementMultiplier, ForceMode.Acceleration);
 
             // Add downwards force to make falling faster and get better gravity feel.
             rb.AddForce(Vector3.down * fallingForce, ForceMode.Acceleration);
-        } else if(sliding) {
+        } else if(sliding && !grinding) {
             // Allow some movement adjustments, but reduce the effect of adjustment via slideMovementReducer.
             rb.AddForce(movementDirection.normalized * movementSpeed * groundMovementMultiplier * slideMovementReducer, ForceMode.Acceleration);
             Slide();
+        } else if(grinding) {
+            if(grindLocked) {
+                // Get the vector pointing down the rail.
+                // If the rail turns or anything, we need to calculate this hit each frame so that the vector can be updated.
+                Vector3 left = Vector3.Cross(grindSurfaceHit.normal, Vector3.up); 
+                Vector3 slope = Vector3.Cross(grindSurfaceHit.normal, left);
+                rb.AddForce(slope.normalized * grindSpeed, ForceMode.Impulse);
+                Debug.Log("sliding");
+            }
+            
         }
     }
 
@@ -202,6 +274,30 @@ public class RigidMovement : MonoBehaviour
         } else if(!isGrounded && currentPoundCount < maxPoundCount) {
             rb.AddForce(Vector3.down * poundForce, ForceMode.Impulse);
             currentPoundCount++;
+        }
+    }
+
+    void AttachGrind() {
+        if(!grindLocked) {
+
+            // Vector3 lockDirection = grindContactPoint - groundCheck.position;
+            // rb.velocity = lockDirection.normalized * grindLockSpeed;
+            
+            
+            // Try lerping
+            transform.position = Vector3.Lerp(transform.position, transform.position + grindContactPoint - groundCheck.position, grindLockSpeed * Time.deltaTime);
+            
+
+            // Can try an instant translation onto the rail. Feels jerky.
+            // transform.Translate(grindContactPoint - groundCheck.position, Space.Self);
+        }
+
+        if(Vector3.Distance(grindContactPoint, groundCheck.position) < grindLockDistance) {
+            Debug.Log("GRIND LOCKED IN. WE ARE ATTACHED.");
+            rb.velocity = new Vector3(0,0,0);
+            grindLocked = true;
+        } else {
+            grindLocked = false;
         }
     }
 
@@ -294,12 +390,27 @@ public class RigidMovement : MonoBehaviour
     bool OnSlope() {
         if(Physics.Raycast(transform.position, Vector3.down, out slopeHit, (basePlayerHeight / 2) + slopeHitMargin)) {
             if(slopeHit.normal != Vector3.up) {
-                // Debug.Log("on slope");
                 return true;
             }
         }
 
-        // Debug.Log("off slope");
         return false;
+    }
+
+    private void OnDrawGizmosSelected() {
+        Gizmos.DrawWireSphere(transform.position, grindCheckRadius);
+        Gizmos.DrawLine(transform.position, transform.position - grindDistanceDetection * transform.up);
+
+        if(canGrind) {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(grindHit.point, .25f);
+            Gizmos.DrawLine(groundCheck.position, grindHit.point);
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(grindContactPoint, .25f);
+
+            Gizmos.color = Color.blue;
+            Gizmos.DrawRay(new Ray(grindSurfaceHit.point, grindSurfaceHit.normal));
+        }
     }
 }
