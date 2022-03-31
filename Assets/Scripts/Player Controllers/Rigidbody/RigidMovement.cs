@@ -8,6 +8,12 @@ public class RigidMovement : MonoBehaviour
     RigidLook rigidLook;
     CapsuleCollider playerCollider;
 
+    [Header("Camera")]
+    public Camera playerCam;
+    private float baseFov;
+    public float slideFov = 120f;
+    public float slideFovTime = 20f;
+
     [Header("Movement")]
     public Transform orientation;
     public float movementSpeed = 6f;
@@ -58,9 +64,14 @@ public class RigidMovement : MonoBehaviour
     private Vector3 slideVector = Vector3.zero;
     public float slideMovementReducer = 0.2f;
     private bool slideForceApplied = false;
+    public float returnFovSlideVelocity = 1f; // The velocity at which we should return camera to normal.
 
     [Header("Dash")]
-    public float dashForce = 100f;
+    public float airDashForce = 40f;
+    public float groundDashForce = 100f;
+    public int maxDashCount = 2;
+    public float dashRegenTime = 1.0f;
+    private int currentDashCount = 0;
 
     [Header("Blast")]
     public float blastForce = 75f;
@@ -98,6 +109,8 @@ public class RigidMovement : MonoBehaviour
         basePlayerHeight = playerCollider.height;
         baseCameraPosition = cameraPosition.localPosition;
         crouchedCameraPosition = new Vector3(cameraPosition.localPosition.x, crouchedCameraHeight, cameraPosition.localPosition.z);
+
+        baseFov = playerCam.fieldOfView;
     }
 
     void Update() {
@@ -206,7 +219,7 @@ public class RigidMovement : MonoBehaviour
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         } else if(currentJumpCount < maxJumpCount) {
-            // rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         }
@@ -243,6 +256,10 @@ public class RigidMovement : MonoBehaviour
         }
 
         cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, crouchedCameraPosition, crouchTime * Time.deltaTime);
+        if(Vector3.Magnitude(rb.velocity) > returnFovSlideVelocity)
+            playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, slideFov, slideFovTime * Time.deltaTime);
+        else 
+            playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, baseFov, slideFovTime * Time.deltaTime);
     }
 
     void Uncrouch() {
@@ -253,6 +270,7 @@ public class RigidMovement : MonoBehaviour
         }
         
         cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, baseCameraPosition, 2 * crouchTime * Time.deltaTime);
+        playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, baseFov, slideFovTime * Time.deltaTime);
         
         if(Mathf.Abs(cameraPosition.localPosition.y - baseCameraPosition.y) < 0.05) {
             // If camera is "close enough" to its original position, reset the camera back to its original position and stop uncrouching.
@@ -285,7 +303,21 @@ public class RigidMovement : MonoBehaviour
     }
 
     void Dash() {
-        rb.AddForce(orientation.forward * dashForce, ForceMode.Impulse);
+        if(currentDashCount < maxDashCount) {
+            if(isGrounded) {
+                rb.AddForce(orientation.forward * groundDashForce, ForceMode.Impulse);
+            } else {
+                rb.AddForce(orientation.forward * airDashForce, ForceMode.Impulse);
+            }
+            currentDashCount++;
+            Invoke("RegenerateDash", dashRegenTime);
+        }
+    }
+
+    void RegenerateDash() {
+        if(currentDashCount > 0) {
+            currentDashCount--;
+        }
     }
 
     void Shoot() {
