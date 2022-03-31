@@ -34,9 +34,13 @@ public class RigidMovement : MonoBehaviour
     private int currentJumpCount = 0;
 
     [Header("Pound")]
-    public float poundForce = 150f;
+    public float minPoundForce = 150f;
+    public float maxPoundForce = 1500f;
+    public float minPoundHeight = 20f;
+    public float maxPoundHeight = 100f;
     public int maxPoundCount = 2;
     private int currentPoundCount = 0;
+
 
     [Header("Crouch/Slide")]
     public float flatSlideForce = 5f;
@@ -72,6 +76,7 @@ public class RigidMovement : MonoBehaviour
     public float groundSphereRadius = 0.4f;
     public LayerMask groundMask;
     bool isGrounded;
+    float heightAboveGround = 0f;
 
     [Header("Keybinds")]
     public KeyCode jumpKey = KeyCode.Space;
@@ -101,6 +106,13 @@ public class RigidMovement : MonoBehaviour
             // Reset jumps and pounds.
             currentJumpCount = 0;
             currentPoundCount = 0;
+        }
+
+        // This raycast detects anything below the player and measures how high player is above that point.
+        RaycastHit groundDetectionHit;
+        bool groundDetected = Physics.Raycast(transform.position, Vector3.down, out groundDetectionHit);
+        if(groundDetected) {
+            heightAboveGround = groundDetectionHit.distance;
         }
 
         slopeMovementDirection = Vector3.ProjectOnPlane(movementDirection, slopeHit.normal);
@@ -141,8 +153,10 @@ public class RigidMovement : MonoBehaviour
         if(Input.GetKeyUp(crouchPoundKey)) {
             Uncrouch();
             sliding = false;
-            slideVector = Vector3.zero; // When we uncrouch, return the slideVector to 0 state.
-            slideForceApplied = false;
+
+            // When we uncrouch, reset slideVector and slideForceApplied.
+            slideVector = Vector3.zero;
+            slideForceApplied = false; 
         }
         if(uncrouching == true && !crouched) {
             // We must continue to call Uncrouch until we have lerped back to original camera position.
@@ -200,6 +214,17 @@ public class RigidMovement : MonoBehaviour
 
     void Pound() {
         // Prob do a raycast check and make sure we're a certain distance above the ground before enabling pound.
+
+        // Make pound force proportional to the player's height above the ground.
+        float poundForce = 0f;
+        if(heightAboveGround > maxPoundHeight) {
+            poundForce = maxPoundForce;
+        } else if(heightAboveGround < minPoundHeight) {
+            poundForce = minPoundForce;
+        } else {
+           poundForce = minPoundForce + (heightAboveGround - minPoundHeight)*(maxPoundForce - minPoundForce)/(maxPoundHeight - minPoundHeight);
+        }
+
         if(!isGrounded && currentPoundCount==0) {
             rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(Vector3.down * poundForce, ForceMode.Impulse);
@@ -301,12 +326,15 @@ public class RigidMovement : MonoBehaviour
     bool OnSlope() {
         if(Physics.Raycast(transform.position, Vector3.down, out slopeHit, (basePlayerHeight / 2) + slopeHitMargin)) {
             if(slopeHit.normal != Vector3.up) {
-                // Debug.Log("on slope");
                 return true;
             }
         }
 
-        // Debug.Log("off slope");
         return false;
+    }
+
+    private float remap(float s, float a1, float a2, float b1, float b2)
+    {
+        return b1 + (s-a1)*(b2-b1)/(a2-a1);
     }
 }

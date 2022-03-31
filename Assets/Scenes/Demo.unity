@@ -5494,9 +5494,12 @@ MonoBehaviour:
   jumpForce: 27
   fallingForce: 22
   maxJumpCount: 2
-  poundForce: 150
+  minPoundForce: 150
+  maxPoundForce: 800
+  minPoundHeight: 20
+  maxPoundHeight: 200
   maxPoundCount: 2
-  flatSlideForce: 2.5
+  flatSlideForce: 100
   slopeSlideForce: 20
   crouchedPlayerHeight: 1
   cameraPosition: {fileID: 246725579}
