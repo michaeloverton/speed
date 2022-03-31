@@ -53,6 +53,7 @@ public class RigidMovement : MonoBehaviour
     private bool uncrouching = false;
     private Vector3 slideVector = Vector3.zero;
     public float slideMovementReducer = 0.2f;
+    private bool slideForceApplied = false;
 
     [Header("Dash")]
     public float dashForce = 100f;
@@ -121,6 +122,7 @@ public class RigidMovement : MonoBehaviour
             Trap();
         }
 
+        // Crouch pressed.
         if(Input.GetKeyDown(crouchPoundKey) && !isGrounded) {
             Pound();
         } else if(Input.GetKey(crouchPoundKey) && isGrounded) {
@@ -134,10 +136,13 @@ public class RigidMovement : MonoBehaviour
                 slideVector = orientation.forward;
             }
         }
+
+        // Crouch un-pressed.
         if(Input.GetKeyUp(crouchPoundKey)) {
             Uncrouch();
             sliding = false;
             slideVector = Vector3.zero; // When we uncrouch, return the slideVector to 0 state.
+            slideForceApplied = false;
         }
         if(uncrouching == true && !crouched) {
             // We must continue to call Uncrouch until we have lerped back to original camera position.
@@ -234,9 +239,11 @@ public class RigidMovement : MonoBehaviour
     }
 
     void Slide() {
-        if(!OnSlope()) {
+        if(!OnSlope() && !slideForceApplied) {
             rb.AddForce(slideVector * flatSlideForce, ForceMode.Impulse);
-        } else {
+            slideForceApplied = true;
+
+        } else if(OnSlope()) {
             // Get the vector pointing down the slope.
             Vector3 left = Vector3.Cross(slopeHit.normal, Vector3.up); 
             Vector3 slope = Vector3.Cross(slopeHit.normal, left);
