@@ -8,6 +8,12 @@ public class RigidMovement : MonoBehaviour
     RigidLook rigidLook;
     CapsuleCollider playerCollider;
 
+    [Header("Camera")]
+    public Camera playerCam;
+    private float baseFov;
+    public float slideFov = 120f;
+    public float slideFovTime = 20f;
+
     [Header("Movement")]
     public Transform orientation;
     public float movementSpeed = 6f;
@@ -34,9 +40,13 @@ public class RigidMovement : MonoBehaviour
     private int currentJumpCount = 0;
 
     [Header("Pound")]
-    public float poundForce = 150f;
+    public float minPoundForce = 150f;
+    public float maxPoundForce = 1500f;
+    public float minPoundHeight = 20f;
+    public float maxPoundHeight = 100f;
     public int maxPoundCount = 2;
     private int currentPoundCount = 0;
+
 
     [Header("Crouch/Slide")]
     public float flatSlideForce = 5f;
@@ -53,9 +63,15 @@ public class RigidMovement : MonoBehaviour
     private bool uncrouching = false;
     private Vector3 slideVector = Vector3.zero;
     public float slideMovementReducer = 0.2f;
+    private bool slideForceApplied = false;
+    public float returnFovSlideVelocity = 1f; // The velocity at which we should return camera to normal.
 
     [Header("Dash")]
-    public float dashForce = 100f;
+    public float airDashForce = 40f;
+    public float groundDashForce = 100f;
+    public int maxDashCount = 2;
+    public float dashRegenTime = 1.0f;
+    private int currentDashCount = 0;
 
     [Header("Blast")]
     public float blastForce = 75f;
@@ -71,6 +87,7 @@ public class RigidMovement : MonoBehaviour
     public float groundSphereRadius = 0.4f;
     public LayerMask groundMask;
     bool isGrounded;
+    float heightAboveGround = 0f;
 
     [Header("Keybinds")]
     public KeyCode jumpKey = KeyCode.Space;
@@ -92,6 +109,8 @@ public class RigidMovement : MonoBehaviour
         basePlayerHeight = playerCollider.height;
         baseCameraPosition = cameraPosition.localPosition;
         crouchedCameraPosition = new Vector3(cameraPosition.localPosition.x, crouchedCameraHeight, cameraPosition.localPosition.z);
+
+        baseFov = playerCam.fieldOfView;
     }
 
     void Update() {
@@ -100,6 +119,13 @@ public class RigidMovement : MonoBehaviour
             // Reset jumps and pounds.
             currentJumpCount = 0;
             currentPoundCount = 0;
+        }
+
+        // This raycast detects anything below the player and measures how high player is above that point.
+        RaycastHit groundDetectionHit;
+        bool groundDetected = Physics.Raycast(transform.position, Vector3.down, out groundDetectionHit);
+        if(groundDetected) {
+            heightAboveGround = groundDetectionHit.distance;
         }
 
         slopeMovementDirection = Vector3.ProjectOnPlane(movementDirection, slopeHit.normal);
@@ -121,6 +147,7 @@ public class RigidMovement : MonoBehaviour
             Trap();
         }
 
+        // Crouch pressed.
         if(Input.GetKeyDown(crouchPoundKey) && !isGrounded) {
             Pound();
         } else if(Input.GetKey(crouchPoundKey) && isGrounded) {
@@ -134,10 +161,15 @@ public class RigidMovement : MonoBehaviour
                 slideVector = orientation.forward;
             }
         }
+
+        // Crouch un-pressed.
         if(Input.GetKeyUp(crouchPoundKey)) {
             Uncrouch();
             sliding = false;
-            slideVector = Vector3.zero; // When we uncrouch, return the slideVector to 0 state.
+
+            // When we uncrouch, reset slideVector and slideForceApplied.
+            slideVector = Vector3.zero;
+            slideForceApplied = false; 
         }
         if(uncrouching == true && !crouched) {
             // We must continue to call Uncrouch until we have lerped back to original camera position.
@@ -187,7 +219,7 @@ public class RigidMovement : MonoBehaviour
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         } else if(currentJumpCount < maxJumpCount) {
-            // rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         }
@@ -195,6 +227,17 @@ public class RigidMovement : MonoBehaviour
 
     void Pound() {
         // Prob do a raycast check and make sure we're a certain distance above the ground before enabling pound.
+
+        // Make pound force proportional to the player's height above the ground.
+        float poundForce = 0f;
+        if(heightAboveGround > maxPoundHeight) {
+            poundForce = maxPoundForce;
+        } else if(heightAboveGround < minPoundHeight) {
+            poundForce = minPoundForce;
+        } else {
+           poundForce = minPoundForce + (heightAboveGround - minPoundHeight)*(maxPoundForce - minPoundForce)/(maxPoundHeight - minPoundHeight);
+        }
+
         if(!isGrounded && currentPoundCount==0) {
             rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(Vector3.down * poundForce, ForceMode.Impulse);
@@ -213,6 +256,10 @@ public class RigidMovement : MonoBehaviour
         }
 
         cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, crouchedCameraPosition, crouchTime * Time.deltaTime);
+        if(Vector3.Magnitude(rb.velocity) > returnFovSlideVelocity)
+            playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, slideFov, slideFovTime * Time.deltaTime);
+        else 
+            playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, baseFov, slideFovTime * Time.deltaTime);
     }
 
     void Uncrouch() {
@@ -223,6 +270,7 @@ public class RigidMovement : MonoBehaviour
         }
         
         cameraPosition.localPosition = Vector3.Lerp(cameraPosition.localPosition, baseCameraPosition, 2 * crouchTime * Time.deltaTime);
+        playerCam.fieldOfView = Mathf.Lerp(playerCam.fieldOfView, baseFov, slideFovTime * Time.deltaTime);
         
         if(Mathf.Abs(cameraPosition.localPosition.y - baseCameraPosition.y) < 0.05) {
             // If camera is "close enough" to its original position, reset the camera back to its original position and stop uncrouching.
@@ -234,9 +282,11 @@ public class RigidMovement : MonoBehaviour
     }
 
     void Slide() {
-        if(!OnSlope()) {
+        if(!OnSlope() && !slideForceApplied) {
             rb.AddForce(slideVector * flatSlideForce, ForceMode.Impulse);
-        } else {
+            slideForceApplied = true;
+
+        } else if(OnSlope()) {
             // Get the vector pointing down the slope.
             Vector3 left = Vector3.Cross(slopeHit.normal, Vector3.up); 
             Vector3 slope = Vector3.Cross(slopeHit.normal, left);
@@ -253,7 +303,21 @@ public class RigidMovement : MonoBehaviour
     }
 
     void Dash() {
-        rb.AddForce(orientation.forward * dashForce, ForceMode.Impulse);
+        if(currentDashCount < maxDashCount) {
+            if(isGrounded) {
+                rb.AddForce(orientation.forward * groundDashForce, ForceMode.Impulse);
+            } else {
+                rb.AddForce(orientation.forward * airDashForce, ForceMode.Impulse);
+            }
+            currentDashCount++;
+            Invoke("RegenerateDash", dashRegenTime);
+        }
+    }
+
+    void RegenerateDash() {
+        if(currentDashCount > 0) {
+            currentDashCount--;
+        }
     }
 
     void Shoot() {
@@ -294,12 +358,15 @@ public class RigidMovement : MonoBehaviour
     bool OnSlope() {
         if(Physics.Raycast(transform.position, Vector3.down, out slopeHit, (basePlayerHeight / 2) + slopeHitMargin)) {
             if(slopeHit.normal != Vector3.up) {
-                // Debug.Log("on slope");
                 return true;
             }
         }
 
-        // Debug.Log("off slope");
         return false;
+    }
+
+    private float remap(float s, float a1, float a2, float b1, float b2)
+    {
+        return b1 + (s-a1)*(b2-b1)/(a2-a1);
     }
 }
