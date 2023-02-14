@@ -25,19 +25,17 @@ public class CameraMoveTilt : MonoBehaviour
         // Tilt based on velocity. Causes camera jitter why?
         // currentMoveTilt = -Utility.Remap(localVelocity.x, 0, 30, 0, maxTilt);
 
-        if(localVelocity.x > startVelocity)
-        {
-            currentMoveTilt = Mathf.Lerp(currentMoveTilt, -maxTilt, tiltTime * Time.deltaTime);
-        }
-        else if(localVelocity.x < -startVelocity)
+        if(Input.GetKey(KeyCode.A))
         {
             currentMoveTilt = Mathf.Lerp(currentMoveTilt, maxTilt, tiltTime * Time.deltaTime);
+        }
+        else if(Input.GetKey(KeyCode.D))
+        {
+            currentMoveTilt = Mathf.Lerp(currentMoveTilt, -maxTilt, tiltTime * Time.deltaTime);
         }
         else
         {
             currentMoveTilt = Mathf.Lerp(currentMoveTilt, 0, tiltTime * Time.deltaTime);
         }
-
-        
     }
 }
