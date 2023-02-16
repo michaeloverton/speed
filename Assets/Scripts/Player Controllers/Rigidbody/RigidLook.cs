@@ -4,7 +4,8 @@ using UnityEngine;
 
 public class RigidLook : MonoBehaviour
 {
-    public RigidWallRun wallRun;
+    [SerializeField] RigidWallRun wallRun;
+    [SerializeField] CameraMoveTilt cameraMoveTilt;
     [SerializeField] private float sensitivityX;
     [SerializeField] private float sensitivityY;
 
@@ -27,7 +28,7 @@ public class RigidLook : MonoBehaviour
     void Update() {
         GetInput();
 
-        cam.transform.localRotation = Quaternion.Euler(xRotation, yRotation, wallRun.currentTilt); // Takes into account the possible tilting of camera.
+        cam.transform.localRotation = Quaternion.Euler(xRotation, yRotation, wallRun.currentTilt + cameraMoveTilt.currentMoveTilt); // Takes into account the possible tilting of camera.
         orientation.transform.rotation = Quaternion.Euler(0, yRotation, 0);
     }
 

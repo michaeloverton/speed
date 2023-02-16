@@ -187,7 +187,7 @@ public class RigidMovement : MonoBehaviour
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         } else if(currentJumpCount < maxJumpCount) {
-            // rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
             currentJumpCount++;
         }
