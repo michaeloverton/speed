@@ -13,6 +13,8 @@ public class Grapple : MonoBehaviour
 
     LineRenderer lineRenderer;
     Vector3 connectionPoint;
+    Vector3 localConnectionPoint;
+    Transform connectedObjectTransform;
     bool connected = false;
     SpringJoint springJoint;
     [SerializeField] float retractionRate = 0.1f;
@@ -30,7 +32,6 @@ public class Grapple : MonoBehaviour
     void Update()
     {
         Transform orientation = rl.getCameraHolder();
-        // Debug.DrawRay(cam.position, orientation.TransformDirection(Vector3.forward), Color.red);
         Debug.DrawRay(cam.position, orientation.forward, Color.red);
         
         // Pressed.
@@ -42,7 +43,9 @@ public class Grapple : MonoBehaviour
                 lineRenderer.enabled = true;
                 connected = true;
                 connectionPoint = grappleHit.point;
-                // grappleHit.collider.gameObje-
+
+                connectedObjectTransform = grappleHit.collider.gameObject.transform;
+                localConnectionPoint = connectedObjectTransform.InverseTransformPoint(connectionPoint);
 
                 springJoint = playerContainer.AddComponent<SpringJoint>();
                 springJoint.autoConfigureConnectedAnchor = false;
@@ -57,8 +60,10 @@ public class Grapple : MonoBehaviour
         // Holding.
         if(Input.GetMouseButton(0) && connected)
         {
+            connectionPoint = connectedObjectTransform.TransformPoint(localConnectionPoint);
             lineRenderer.SetPosition(0, transform.position);
             lineRenderer.SetPosition(1, connectionPoint);
+            springJoint.connectedAnchor = connectionPoint;
         }
 
         // Retract.
