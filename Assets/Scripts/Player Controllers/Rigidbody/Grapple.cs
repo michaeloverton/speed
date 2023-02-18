@@ -17,7 +17,11 @@ public class Grapple : MonoBehaviour
     Transform connectedObjectTransform;
     bool connected = false;
     SpringJoint springJoint;
-    [SerializeField] float retractionRate = 0.1f;
+    [SerializeField] float retractionRate = 60f;
+
+    [SerializeField] GameObject grappleCrosshair;
+    [SerializeField] float crosshairScaleFactor;
+    Vector3 baseCrosshairScale;
 
     void Start()
     {
@@ -26,6 +30,8 @@ public class Grapple : MonoBehaviour
         lineRenderer.enabled = false;
 
         playerContainer = rl.gameObject;
+        grappleCrosshair.SetActive(false);
+        baseCrosshairScale = grappleCrosshair.transform.localScale;
     }
 
     // Update is called once per frame
@@ -33,12 +39,29 @@ public class Grapple : MonoBehaviour
     {
         Transform orientation = rl.getCameraHolder();
         Debug.DrawRay(cam.position, orientation.forward, Color.red);
+
+        RaycastHit grappleHit;
+        bool rayIsHitting = Physics.Raycast(cam.position, orientation.forward, out grappleHit, grappleLength, ~playerLayer);
+
+        // Crosshair.
+        if(rayIsHitting && !connected)
+        {
+            grappleCrosshair.transform.position = grappleHit.point;
+            float grappleDistance = Vector3.Magnitude(playerContainer.transform.position - grappleHit.point);
+            grappleCrosshair.transform.localScale = crosshairScaleFactor * grappleDistance * baseCrosshairScale;
+            grappleCrosshair.transform.position += grappleHit.normal * 0.1f;
+            grappleCrosshair.transform.rotation = Quaternion.FromToRotation(Vector3.forward, grappleHit.normal);
+            grappleCrosshair.SetActive(true);
+        }
+        else
+        {
+            grappleCrosshair.SetActive(false);
+        }
         
         // Pressed.
         if(Input.GetMouseButtonDown(0) && !cooldown) 
         {
-            RaycastHit grappleHit;
-            if(Physics.Raycast(cam.position, orientation.forward, out grappleHit, grappleLength, ~playerLayer))
+            if(rayIsHitting)
             {
                 lineRenderer.enabled = true;
                 connected = true;
